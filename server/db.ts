@@ -16,8 +16,15 @@ export class db{
 	tables: any = {};
 
 	constructor(){
-		const dbConfig: object = config.get('dbConfig');
-		this.client = new pg.Pool(dbConfig);
+		if(process.env.DATABASE_URL === undefined){
+			const dbConfig: object = config.get('dbConfig');
+			this.client = new pg.Pool(dbConfig);
+		}else{	
+			this.client = new pg.Pool({
+			  connectionString: process.env.DATABASE_URL,
+			  ssl: true,
+			});
+		}
 
 		this.addTable("words", words.dbWords);
 		this.addTable("phrases", phrases.dbPhrases);

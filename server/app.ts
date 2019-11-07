@@ -26,6 +26,9 @@ app.use(vocabRoute.baseRoute, vocabRoute.router);
 app.use(phraseRoute.baseRoute, phraseRoute.router);
 app.use(userRoute.baseRoute, userRoute.router);
 
-app.listen(3000, () => {
-	console.log("Listening on port 3000!");
+const server = app.listen(process.env.PORT || 3000, () => {
+	var address: any = server.address();
+	if(address !== null){
+		console.log("Listening on port:",address.port);
+	}
 })
