@@ -16,12 +16,9 @@ export class dbUsers extends t.Table{
 		if(gIdToken.length < 1){
 			return false;
 		}
-
-		const query = {
-			text: `INSERT INTO lang.users(google_token, full_name) VALUES($1, $2);`,
-			values: [gIdToken, fullName]
-		}
-		const dbRes = await this.query(query);
+		const existsCheck = await this.query("SELECT * FROM lang.users WHERE google_token=$1", [gIdToken]);
+		if(existsCheck.rows.length > 0) return false;
+		const res = await this.query("INSERT INTO lang.users(google_token, full_name) VALUES($1, $2);", [gIdToken, fullName]);
 		return true;
 	}
 
@@ -29,13 +26,8 @@ export class dbUsers extends t.Table{
 		if(gIdToken.length < 1){
 			return false;
 		}
-
-		const query = {
-			text: `DELETE FROM lang.users WHERE google_token=$1;`,
-			values: [gIdToken]
-		}
-		await this.query(query);
-		return true;
+		const res = await this.query("DELETE FROM lang.users WHERE google_token=$1", [gIdToken]);
+		return res.rowCount > 0;
 	}
 
 	async getById(): Promise<object>{return {}}
@@ -49,11 +41,12 @@ export class dbUserWords extends t.Table{
 			`CREATE TABLE IF NOT EXISTS lang.user_words (
 				google_token VARCHAR NOT NULL REFERENCES lang.users (google_token),
 				word_id uuid NOT NULL REFERENCES lang.words (word_id),
-				difficulty INTEGER NOT NULL DEFAULT 0,
-				importance INTEGER NOT NULL DEFAULT 0,
+				difficulty REAL NOT NULL DEFAULT 0,
+				importance REAL NOT NULL DEFAULT 0,
 				add_time timestamp NOT NULL DEFAULT NOW(),
 				CONSTRAINT normalized_difficulty CHECK (difficulty >= 0 AND difficulty <= 1),
-				CONSTRAINT normalized_importance CHECK (importance >= 0 AND importance <= 1)
+				CONSTRAINT normalized_importance CHECK (importance >= 0 AND importance <= 1),
+				CONSTRAINT doubled_user_word UNIQUE (google_token, word_id)
 			);`,
 		]
 	}
@@ -87,7 +80,7 @@ export class dbUserWords extends t.Table{
 		return {importance: importance, difficulty: difficulty, timestamp: add_time};
 	}
 
-	async getVocabulary(gIdToken: string): Promise<{wordId: string, difficulty: number, importance: number, timestamp: Date}[]>{
+	async getVocab(gIdToken: string): Promise<{wordId: string, difficulty: number, importance: number, timestamp: Date}[]>{
 		const res = await this.query("SELECT word_id, difficulty, importance, add_time FROM lang.user_words WHERE google_token=$1", [gIdToken]);
 		return res.rows.map((row: any) => {
 			const {word_id, difficulty, importance, add_time} = row;
@@ -103,11 +96,12 @@ export class dbUserPhrases extends t.Table{
 			`CREATE TABLE IF NOT EXISTS lang.user_phrases (
 				google_token VARCHAR REFERENCES lang.users (google_token),
 				phrase_id uuid NOT NULL REFERENCES lang.phrases (phrase_id),
-				difficulty INTEGER NOT NULL DEFAULT 0,
-				importance INTEGER NOT NULL DEFAULT 0,
+				difficulty REAL NOT NULL DEFAULT 0,
+				importance REAL NOT NULL DEFAULT 0,
 				add_time timestamp NOT NULL DEFAULT NOW(),
 				CONSTRAINT normalized_difficulty CHECK (difficulty >= 0 AND difficulty <= 1),
-				CONSTRAINT normalized_importance CHECK (importance >= 0 AND importance <= 1)
+				CONSTRAINT normalized_importance CHECK (importance >= 0 AND importance <= 1),
+				CONSTRAINT doubled_user_phrase UNIQUE (google_token, phrase_id)
 			);`,
 		]
 	}
@@ -116,6 +110,10 @@ export class dbUserPhrases extends t.Table{
 		const existCheck = await this.query("SELECT * FROM lang.user_phrases WHERE google_token=$1 AND phrase_id=$2", [gIdToken, phraseId]);
 		if(existCheck.rows.length > 0) return true;
 		const res = await this.query("INSERT INTO lang.user_phrases(google_token, phrase_id, difficulty, importance) VALUES($1, $2, $3, $4)", [gIdToken, phraseId, difficulty, importance]);
+		const phrase = await this.query("SELECT words FROM lang.phrase_words WHERE phrase_id=$1", [phraseId]);
+		for(const word of Object.values(phrase.rows[0].words)){
+			this.tables["userWords"].add(gIdToken, word)
+		}
 		return res.rowCount > 0;
 	}
 
@@ -136,7 +134,7 @@ export class dbUserPhrases extends t.Table{
 
 	async get(gIdToken: string, phraseId: string): Promise<{importance: number, difficulty: number, timestamp: Date}>{
 		const res = await this.query("SELECT importance, difficulty, add_time FROM lang.user_phrases WHERE google_token=$1 AND phrase_id=$2", [gIdToken, phraseId]);
-		if(res.rows.length < 1) return {importance: -1, difficulty: -1, timestamp: new Date()};
+		if(res.rows.length < 1) throw {routine: "User does not exist", code: 400};
 		const {importance, difficulty, add_time} = res.rows[0];
 		return {importance: importance, difficulty: difficulty, timestamp: add_time};
 	}
@@ -158,7 +156,7 @@ export class dbWordPractice extends t.Table{
 				google_token VARCHAR NOT NULL REFERENCES lang.users (google_token),
 				word_id uuid NOT NULL REFERENCES lang.words (word_id),
 				time timestamp NOT NULL DEFAULT NOW(),
-				score FLOAT NOT NULL DEFAULT 0,
+				score REAL NOT NULL DEFAULT 0,
 				CONSTRAINT normalized_score CHECK (score >= 0 AND score <= 1)
 			);`,
 		]
@@ -170,7 +168,7 @@ export class dbWordPractice extends t.Table{
 	}
 
 	async get(gIdToken: string, wordId: string): Promise<{score: number, timestamp: Date}>{
-		const res = await this.query("SELECT score, time FROM lang.user_word_practice WHERE google_token=$1 AND word_id=$2", [gIdToken, wordId]);
+		const res = await this.query("SELECT score, time FROM lang.user_word_practice WHERE google_token=$1 AND word_id=$2 ORDER BY time DESC;", [gIdToken, wordId]);
 		return res.rows.map((row: any) => {
 			const {score, time}: {score: number, time: Date} = row;
 			return {score: score, timestamp: time};
@@ -186,7 +184,7 @@ export class dbPhrasePractice extends t.Table{
 				google_token VARCHAR REFERENCES lang.users (google_token),
 				phrase_id uuid NOT NULL REFERENCES lang.phrases (phrase_id),
 				time timestamp NOT NULL DEFAULT NOW(),
-				score FLOAT NOT NULL DEFAULT 0,
+				score REAL NOT NULL DEFAULT 0,
 				CONSTRAINT normalized_score CHECK (score >= 0 AND score <= 1)
 			);`,
 		]
@@ -198,7 +196,7 @@ export class dbPhrasePractice extends t.Table{
 	}
 
 	async get(gIdToken: string, phraseId: string): Promise<{score: number, timestamp: Date}>{
-		const res = await this.query("SELECT score, time FROM lang.user_phrase_practice WHERE google_token=$1 AND phrase_id=$2", [gIdToken, phraseId]);
+		const res = await this.query("SELECT score, time FROM lang.user_phrase_practice WHERE google_token=$1 AND phrase_id=$2 ORDER BY time DESC;", [gIdToken, phraseId]);
 		return res.rows.map((row: any) => {
 			const {score, time}: {score: number, time: Date} = row;
 			return {score: score, timestamp: time};

@@ -16,17 +16,19 @@ export class dbWords extends t.Table{
 				word_id uuid PRIMARY KEY,
 				trans_id uuid,
 				value varchar NOT NULL,
-				lang_code char(2) NOT NULL
+				lang_code char(2) NOT NULL,
+				CONSTRAINT doubled_word_for_lang UNIQUE (value, lang_code)
 			);`,
 		]
 	}
 
 	async add(word: string, lang: string, transId?: string): Promise<string>{
 		// Adds the word to the database if it does not exist and then return the ID
+		word = word.toLowerCase().replace(/[^0-9a-z']/gi, '');
 		const existingWords: any[] = await this.getByValue(word, lang);
 		if(existingWords.length > 0) return existingWords[0]["word_id"];
 		const query = {
-			text: "INSERT INTO lang.words(word_id, trans_id, value, lang_code) VALUES (uuid_generate_v4(), $1, $2, $3)",
+			text: "INSERT INTO lang.words(word_id, trans_id, value, lang_code) VALUES (lang.uuid_generate_v4(), $1, $2, $3)",
 			values: [transId, word, lang]
 		}
 		const res = await this.query(query);

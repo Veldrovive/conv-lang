@@ -8,10 +8,10 @@ import users = require("./db/dbUsers");
 export class db{
 	client: pg.Pool;
 	setupCommands: string[] = [
-		'CREATE EXTENSION IF NOT EXISTS "uuid-ossp";',
-		'CREATE EXTENSION IF NOT EXISTS "fuzzystrmatch";',
-		'CREATE EXTENSION IF NOT EXISTS "pg_trgm"',
-		'CREATE SCHEMA IF NOT EXISTS "lang";'
+		'CREATE SCHEMA IF NOT EXISTS "lang";',
+		'CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA lang;',
+		'CREATE EXTENSION IF NOT EXISTS "fuzzystrmatch" WITH SCHEMA lang;',
+		'CREATE EXTENSION IF NOT EXISTS "pg_trgm" WITH SCHEMA lang'
 	]
 	tables: any = {};
 
@@ -34,22 +34,13 @@ export class db{
 		this.addTable("userWords", users.dbUserWords);
 		this.addTable("userPhrases", users.dbUserPhrases);
 		this.addTable("wordPractice", users.dbWordPractice);
-		this.addTable("phrasePractive", users.dbPhrasePractice);
+		this.addTable("phrasePractice", users.dbPhrasePractice);
 
 		this.setup();
 	}
 
 	addTable(name: string, table: any): void{
 		this.tables[name] = new table(this.client, this.tables);
-	}
-
-	async runTests(): Promise<void>{
-		// this.tables["phraseWords"].setWords('4655bd3d-c122-41f8-8496-df1d02213a2f', "je m'appelle aidan", 'fr');
-		// console.log(await this.tables["phraseWords"].matchPhrase("His name is aidan"));
-		// console.log(await this.tables["phrases"].get("4655bd3d-c122-41f8-8496-df1d02213a2f"))
-
-		// const newId = await this.tables["phrases"].add()
-		await (this.tables["phraseWords"] as phrases.dbPhraseWords).setWords('a462c94e-2803-4278-9ecc-f74fe3583f80', "Nice to meet you", 'en');
 	}
 
 	async setup(): Promise<boolean>{
@@ -73,7 +64,6 @@ export class db{
 			
 			await (table as t.Table).runSetup();
 		}
-		this.runTests();
 		return true;
 	}
 }
