@@ -1,16 +1,22 @@
 import express = require('express');
 import path = require('path');
+import cors = require('cors');
 import data = require("./db");
 import vRoute = require("./routers/vocabRouter");
 import pRoute = require("./routers/phraseRouter");
 import uRoute = require("./routers/userRouter");
 // Use http://lvh.me:3000/ to avoid having to create your own url
 
+const corsOptions = {
+	origin: 'https://adev.ngrok.io'
+};
+
 const app: express.Application = express();
 app.use("/static", express.static(path.join(__dirname, "../client")));
 app.use("/static", express.static(path.join(__dirname, "../lib")));
 
 app.use(express.json()); 
+app.use(cors(corsOptions));
 
 const database: data.db = new data.db();
 

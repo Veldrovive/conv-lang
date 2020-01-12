@@ -11,8 +11,8 @@ interface Phrase {
     conv_start_votes: number;
     conv_start_flags: number;
     translations: {lang: string, text: string}[];
-    children: {childId: string, votes: number, flags: number}[],
-    parents: {parentId: string, votes: number, flags: number}[]
+    children: {childId: string, votes: number, flags: number}[];
+    parents: {parentId: string, votes: number, flags: number}[];
 }
 
 export class dbPhrases extends t.Table{
